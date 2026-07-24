@@ -1,0 +1,11 @@
+.pixi/
+__pycache__/
+*.pyc
+.pytest_cache/
+htmlcov/
+.coverage
+*.egg-info/
+dist/
+.chromadb/
+.venv/
+.omc/
