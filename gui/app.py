@@ -64,21 +64,35 @@ def build_ui() -> gr.Blocks:
             with gr.Tab("Pipeline Technician"):
                 gr.Markdown("Run and monitor the sulcal pipeline.")
                 tech_chat = gr.Chatbot(height=500)
-                tech_input = gr.Textbox(placeholder="e.g. Run the full pipeline for sub-001...")
-                tech_input.submit(
-                    technician_chat,
-                    inputs=[tech_input, tech_chat],
-                    outputs=tech_chat,
+                with gr.Row():
+                    tech_input = gr.Textbox(
+                        placeholder="e.g. Run the full pipeline for sub-001...",
+                        label="Message",
+                        scale=9,
+                    )
+                    tech_send = gr.Button("Send", variant="primary", scale=1)
+                submit_tech = tech_input.submit(
+                    technician_chat, inputs=[tech_input, tech_chat], outputs=tech_chat
+                ).then(lambda: "", outputs=tech_input)
+                tech_send.click(
+                    technician_chat, inputs=[tech_input, tech_chat], outputs=tech_chat
                 ).then(lambda: "", outputs=tech_input)
 
             with gr.Tab("Data Analyst"):
                 gr.Markdown("Explore sulcal embeddings and subject similarities.")
                 analyst_chatbot = gr.Chatbot(height=500)
-                analyst_input = gr.Textbox(placeholder="e.g. Find subjects similar to sub-001 in SC-sylv_left")
+                with gr.Row():
+                    analyst_input = gr.Textbox(
+                        placeholder="e.g. Find subjects similar to sub-001 in SC-sylv_left",
+                        label="Message",
+                        scale=9,
+                    )
+                    analyst_send = gr.Button("Send", variant="primary", scale=1)
                 analyst_input.submit(
-                    analyst_chat,
-                    inputs=[analyst_input, analyst_chatbot],
-                    outputs=analyst_chatbot,
+                    analyst_chat, inputs=[analyst_input, analyst_chatbot], outputs=analyst_chatbot
+                ).then(lambda: "", outputs=analyst_input)
+                analyst_send.click(
+                    analyst_chat, inputs=[analyst_input, analyst_chatbot], outputs=analyst_chatbot
                 ).then(lambda: "", outputs=analyst_input)
 
     return demo

@@ -10,6 +10,7 @@ Run with:
 from __future__ import annotations
 
 import os
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 import pytest
@@ -38,12 +39,30 @@ def pipeline_dir():
     return PIPELINE_DIR
 
 
+@asynccontextmanager
+async def _mcp_tools(mcp_dir: str, pipeline_dir: str):
+    """Start the champollion MCP subprocess and yield its LangChain tools."""
+    from langchain_mcp_adapters.client import MultiServerMCPClient
+
+    env = {**os.environ, "CHAMPOLLION_PIPELINE_DIR": pipeline_dir}
+    client = MultiServerMCPClient(
+        {
+            "champollion-sulcal": {
+                "command": "pixi",
+                "args": ["run", "run"],
+                "cwd": mcp_dir,
+                "env": env,
+                "transport": "stdio",
+            }
+        }
+    )
+    yield await client.get_tools()
+
+
 @pytest.mark.integration
 async def test_mcp_tool_discovery(mcp_dir, pipeline_dir):
     """MCP server exposes >10 tools including preflight_check."""
-    from champollion_agents.technician.agent import load_mcp_tools
-
-    async with load_mcp_tools(mcp_dir, pipeline_dir) as tools:
+    async with _mcp_tools(mcp_dir, pipeline_dir) as tools:
         names = [t.name for t in tools]
         assert len(tools) > 10, f"Expected >10 tools, got {len(tools)}: {names}"
         assert "preflight_check" in names
@@ -53,9 +72,7 @@ async def test_mcp_tool_discovery(mcp_dir, pipeline_dir):
 @pytest.mark.integration
 async def test_mcp_get_pipeline_info(mcp_dir, pipeline_dir):
     """get_pipeline_info returns version and tool list."""
-    from champollion_agents.technician.agent import load_mcp_tools
-
-    async with load_mcp_tools(mcp_dir, pipeline_dir) as tools:
+    async with _mcp_tools(mcp_dir, pipeline_dir) as tools:
         tool = next(t for t in tools if t.name == "get_pipeline_info")
         result = await tool.ainvoke({})
         result_str = str(result)
@@ -65,9 +82,7 @@ async def test_mcp_get_pipeline_info(mcp_dir, pipeline_dir):
 @pytest.mark.integration
 async def test_mcp_preflight_ok(mcp_dir, pipeline_dir):
     """preflight_check reports all required scripts are present."""
-    from champollion_agents.technician.agent import load_mcp_tools
-
-    async with load_mcp_tools(mcp_dir, pipeline_dir) as tools:
+    async with _mcp_tools(mcp_dir, pipeline_dir) as tools:
         tool = next(t for t in tools if t.name == "preflight_check")
         result = await tool.ainvoke({})
         result_str = str(result).lower()
@@ -77,9 +92,7 @@ async def test_mcp_preflight_ok(mcp_dir, pipeline_dir):
 @pytest.mark.integration
 async def test_mcp_list_jobs_empty(mcp_dir, pipeline_dir, tmp_path):
     """list_jobs on a fresh temp directory returns no jobs."""
-    from champollion_agents.technician.agent import load_mcp_tools
-
-    async with load_mcp_tools(mcp_dir, pipeline_dir) as tools:
+    async with _mcp_tools(mcp_dir, pipeline_dir) as tools:
         tool = next(t for t in tools if t.name == "list_jobs")
         result = await tool.ainvoke({"output_dir": str(tmp_path)})
         result_str = str(result).strip()

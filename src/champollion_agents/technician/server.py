@@ -8,7 +8,7 @@ from fastapi import FastAPI
 from langchain_core.messages import AIMessageChunk, HumanMessage, ToolMessage
 
 from champollion_agents._acp import RunStore, emit, make_acp_router
-from champollion_agents.technician.agent import build_technician_agent, load_mcp_tools
+from champollion_agents.technician.agent import build_technician_agent
 
 run_store: RunStore = {}
 _agent = None  # set during lifespan
@@ -20,12 +20,8 @@ async def lifespan(app: FastAPI):
     mcp_dir = os.environ.get("CHAMPOLLION_MCP_DIR", "../champollion_sulcal_mcp")
     pipeline_dir = os.environ.get("CHAMPOLLION_PIPELINE_DIR", "../champollion_pipeline")
     analyst_url = os.environ.get("CHAMPOLLION_ANALYST_URL", "http://localhost:8002")
-    hf_token = os.environ.get("HF_TOKEN")
-    extra_env = {"HF_TOKEN": hf_token} if hf_token else {}
-
-    async with load_mcp_tools(mcp_dir, pipeline_dir, extra_env) as mcp_tools:
-        _agent = build_technician_agent(mcp_tools, analyst_url=analyst_url)
-        yield
+    _agent = build_technician_agent(mcp_dir, pipeline_dir, analyst_url=analyst_url)
+    yield
 
 
 async def execute_run(run_id: str, message: str | dict, queue: asyncio.Queue, session_id: str) -> None:

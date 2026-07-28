@@ -50,18 +50,31 @@ def pytest_configure(config):
 
 @pytest.hookimpl(hookwrapper=True)
 def pytest_runtest_call(item):
-    """Convert Anthropic billing / quota errors into xfails so CI stays green."""
+    """Convert billing / auth errors into skips so CI stays green."""
     outcome = yield
     if outcome.excinfo:
         exc = outcome.excinfo[1]
         msg = str(exc)
-        if "credit balance is too low" in msg or "quota" in msg.lower():
+        skip_phrases = (
+            "credit balance is too low",
+            "quota",
+            "authentication required",
+            "not logged in",
+            "invalid api key",
+        )
+        if any(p in msg.lower() for p in skip_phrases):
             outcome.force_exception(
-                pytest.skip.Exception(
-                    "Anthropic API credits exhausted — "
-                    "top up at console.anthropic.com/settings/billing"
-                )
+                pytest.skip.Exception(f"Auth/billing issue — check credentials: {msg[:200]}")
             )
+
+
+@pytest.fixture(scope="session")
+def sdk_available():
+    """Skip integration tests when the claude CLI is not available."""
+    import shutil
+
+    if not shutil.which("claude"):
+        pytest.skip("claude CLI not found in PATH — skipping SDK integration test")
 
 
 @pytest.fixture(scope="session")

@@ -21,6 +21,7 @@ dependencies = [
   "numpy>=1.26",
   "langchain-anthropic>=0.3",
   "python-dotenv>=1.0",
+  "claude-code-sdk>=0.0.14",
 ]
 
 [build-system]

@@ -1,7 +1,7 @@
 """Integration tests for the Pipeline Technician agent.
 
-Uses real Claude Haiku + real MCP subprocess. Does NOT launch any
-actual pipeline stage — only exercises read-only MCP tools (preflight,
+Uses the claude-code-sdk (OAuth auth) + real MCP subprocess. Does NOT launch
+any actual pipeline stage — only exercises read-only MCP tools (preflight,
 get_pipeline_info) via the agent's reasoning loop.
 
 Run with:
@@ -39,21 +39,18 @@ def pipeline_dir():
 
 
 @pytest.mark.integration
-async def test_technician_runs_preflight(anthropic_api_key, mcp_dir, pipeline_dir):
+async def test_technician_runs_preflight(sdk_available, mcp_dir, pipeline_dir):
     """Technician agent calls preflight_check and returns a coherent result."""
-    from champollion_agents.technician.agent import build_technician_agent, load_mcp_tools
+    from champollion_agents.technician.agent import build_technician_agent
 
-    async with load_mcp_tools(mcp_dir, pipeline_dir) as mcp_tools:
-        agent = build_technician_agent(mcp_tools, analyst_url="http://localhost:8002")
-        config = {"configurable": {"thread_id": "tech-integration-1"}}
-        result = await agent.ainvoke(
-            {"messages": [{"role": "user", "content": "Run a preflight check on the pipeline."}]},
-            config=config,
-        )
+    agent = build_technician_agent(mcp_dir, pipeline_dir, analyst_url="http://localhost:8002")
+    result = await agent.ainvoke(
+        {"messages": [{"role": "user", "content": "Run a preflight check on the pipeline."}]},
+    )
 
     messages = result["messages"]
     assert len(messages) >= 2
-    final = messages[-1].content
+    final = messages[-1]["content"]
     assert len(final) > 20, f"Response too short: {final!r}"
     lower = final.lower()
     assert any(word in lower for word in ("preflight", "check", "ok", "pass", "script", "pipeline")), (
@@ -62,17 +59,14 @@ async def test_technician_runs_preflight(anthropic_api_key, mcp_dir, pipeline_di
 
 
 @pytest.mark.integration
-async def test_technician_reports_pipeline_info(anthropic_api_key, mcp_dir, pipeline_dir):
+async def test_technician_reports_pipeline_info(sdk_available, mcp_dir, pipeline_dir):
     """Technician agent can report pipeline version information."""
-    from champollion_agents.technician.agent import build_technician_agent, load_mcp_tools
+    from champollion_agents.technician.agent import build_technician_agent
 
-    async with load_mcp_tools(mcp_dir, pipeline_dir) as mcp_tools:
-        agent = build_technician_agent(mcp_tools, analyst_url="http://localhost:8002")
-        config = {"configurable": {"thread_id": "tech-integration-2"}}
-        result = await agent.ainvoke(
-            {"messages": [{"role": "user", "content": "What version is the Champollion pipeline?"}]},
-            config=config,
-        )
+    agent = build_technician_agent(mcp_dir, pipeline_dir, analyst_url="http://localhost:8002")
+    result = await agent.ainvoke(
+        {"messages": [{"role": "user", "content": "What version is the Champollion pipeline?"}]},
+    )
 
-    final = result["messages"][-1].content
+    final = result["messages"][-1]["content"]
     assert len(final) > 10, f"Response too short: {final!r}"

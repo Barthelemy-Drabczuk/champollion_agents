@@ -1,73 +1,46 @@
 from __future__ import annotations
 
 import os
-from contextlib import asynccontextmanager
-from collections.abc import AsyncGenerator
 
-from langchain_core.tools import tool
-from langgraph.checkpoint.memory import MemorySaver
-from langgraph.prebuilt import create_react_agent
+from claude_code_sdk import ClaudeCodeOptions
 
-from champollion_agents.llm import build_llm
-from champollion_agents.technician.tools import make_handoff_tool, poll_until_done, read_job_log_tail
+from champollion_agents.sdk_agent import SdkAgent
 
 SYSTEM_PROMPT = """You are the Champollion Pipeline Technician. Your job is to:
 1. Run preflight_check first on every request.
 2. Adapt parameters: if no CUDA, inject cpu=True; if njobs unset and >8 cores, set njobs=cpu_count//2.
-3. Launch pipeline stages sequentially via the MCP tools, calling poll_until_done after each launch.
-4. On combine success, call handoff_to_analyst with the output paths.
-5. On any failure, read the job log and report the root cause.
+3. Launch pipeline stages sequentially via the MCP tools.
+4. After launching each job, poll for completion by checking its status file every 10s:
+   Job files are at <output_dir>/.mcp_jobs/<job_id>.json
+   Use Bash: `while true; do status=$(python3 -c "import json,sys; d=json.load(open('$FILE')); print(d['status'])" 2>/dev/null); [ "$status" = succeeded ] || [ "$status" = failed ] || [ "$status" = cancelled ] && break; sleep 10; done; cat $FILE`
+5. On failure, read the log with: tail -50 <output_dir>/.mcp_jobs/<job_id>.log
+6. On combine success, hand off by calling the analyst REST API:
+   curl -s -X POST "<analyst_url>/index?combined_embeddings_path=<path>&run_id=<id>"
 
 Never guess paths — ask the user for any missing required path.
 Always return job_id and output path immediately after launching each stage."""
 
 
-def build_technician_agent(mcp_tools: list, analyst_url: str = "http://localhost:8002"):
-    @tool
-    async def poll_job(job_id: str, output_dir: str) -> str:
-        """Poll a job until it reaches a terminal state (succeeded/failed/cancelled). Returns final status dict."""
-        result = await poll_until_done(job_id, output_dir, interval=10)
-        return str(result)
-
-    @tool
-    def tail_job_log(job_id: str, output_dir: str, n: int = 50) -> str:
-        """Return the last N lines of a job's log file."""
-        return read_job_log_tail(job_id, output_dir, n=n)
-
-    handoff_tool = make_handoff_tool(analyst_url=analyst_url)
-    local_tools = [poll_job, tail_job_log, handoff_tool]
-
-    llm = build_llm()
-    checkpointer = MemorySaver()
-    return create_react_agent(
-        llm,
-        mcp_tools + local_tools,
-        checkpointer=checkpointer,
-        prompt=SYSTEM_PROMPT,
-    )
-
-
-@asynccontextmanager
-async def load_mcp_tools(
+def build_technician_agent(
     mcp_dir: str,
     pipeline_dir: str,
-    extra_env: dict | None = None,
-) -> AsyncGenerator[list, None]:
-    from langchain_mcp_adapters.client import MultiServerMCPClient
+    analyst_url: str = "http://localhost:8002",
+) -> SdkAgent:
+    env = {k: str(v) for k, v in os.environ.items()}
+    env["CHAMPOLLION_PIPELINE_DIR"] = pipeline_dir
 
-    env = {**os.environ, "CHAMPOLLION_PIPELINE_DIR": pipeline_dir}
-    if extra_env:
-        env.update(extra_env)
+    system_prompt = SYSTEM_PROMPT.replace("<analyst_url>", analyst_url)
 
-    client = MultiServerMCPClient(
-        {
-            "champollion-sulcal": {
+    options = ClaudeCodeOptions(
+        system_prompt=system_prompt,
+        mcp_servers={
+            "champollion_sulcal": {
                 "command": "pixi",
-                "args": ["run", "run"],
-                "cwd": mcp_dir,
+                "args": ["run", "--manifest-path", f"{mcp_dir}/pixi.toml", "run"],
                 "env": env,
-                "transport": "stdio",
             }
-        }
+        },
+        model=os.environ.get("CHAMPOLLION_LLM_MODEL", "claude-haiku-4-5-20251001"),
+        permission_mode="bypassPermissions",
     )
-    yield await client.get_tools()
+    return SdkAgent(options)
