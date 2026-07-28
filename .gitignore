@@ -9,3 +9,4 @@ dist/
 .chromadb/
 .venv/
 .omc/
+.env

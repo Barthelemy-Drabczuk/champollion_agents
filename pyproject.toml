@@ -19,6 +19,8 @@ dependencies = [
   "gradio>=5.0",
   "pandas>=2.0",
   "numpy>=1.26",
+  "langchain-anthropic>=0.3",
+  "python-dotenv>=1.0",
 ]
 
 [build-system]

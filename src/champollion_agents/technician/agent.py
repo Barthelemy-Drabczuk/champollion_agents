@@ -59,7 +59,7 @@ async def load_mcp_tools(
     if extra_env:
         env.update(extra_env)
 
-    async with MultiServerMCPClient(
+    client = MultiServerMCPClient(
         {
             "champollion-sulcal": {
                 "command": "pixi",
@@ -69,5 +69,5 @@ async def load_mcp_tools(
                 "transport": "stdio",
             }
         }
-    ) as client:
-        yield await client.get_tools()
+    )
+    yield await client.get_tools()

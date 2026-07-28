@@ -57,13 +57,13 @@ def analyst_chat(message: str, history: list) -> Generator[list, None, None]:
 
 
 def build_ui() -> gr.Blocks:
-    with gr.Blocks(title="Champollion Agents", theme=gr.themes.Soft()) as demo:
+    with gr.Blocks(title="Champollion Agents") as demo:
         gr.Markdown("# Champollion Sulcal Pipeline Agents")
 
         with gr.Tabs():
             with gr.Tab("Pipeline Technician"):
                 gr.Markdown("Run and monitor the sulcal pipeline.")
-                tech_chat = gr.Chatbot(type="messages", height=500)
+                tech_chat = gr.Chatbot(height=500)
                 tech_input = gr.Textbox(placeholder="e.g. Run the full pipeline for sub-001...")
                 tech_input.submit(
                     technician_chat,
@@ -73,7 +73,7 @@ def build_ui() -> gr.Blocks:
 
             with gr.Tab("Data Analyst"):
                 gr.Markdown("Explore sulcal embeddings and subject similarities.")
-                analyst_chatbot = gr.Chatbot(type="messages", height=500)
+                analyst_chatbot = gr.Chatbot(height=500)
                 analyst_input = gr.Textbox(placeholder="e.g. Find subjects similar to sub-001 in SC-sylv_left")
                 analyst_input.submit(
                     analyst_chat,
